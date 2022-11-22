@@ -1,0 +1,82 @@
+- name: Uninstall old Docker versions
+  apt:
+    name:
+      - docker
+      - docker-engine
+      - docker.io
+      - containerd
+      - rune
+   state: absent
+
+- name: Creating a directory for packages
+  file:
+    path: /home/kurt/docker-deb
+    state: directory
+
+- name: Downloading Docker Components
+  get_url:
+    url: "https://download-docker.com/linux/ubuntu/dists/jammy/pool/stable/amd64/{{ item }}"
+    dest: /home/kurt/docker-deb
+  with_items:
+    - containerd.io_1.6.9-1_amd64.deb
+    - docker-ce-cli_20.10.21~3-0~ubuntu-jammy_amd64.deb
+    - docker-ce_20.10.21~3-0~ubuntu-jammy_amd64.deb
+    - docker-compose-plugin_2.6.0~ubuntu-jammy_amd64.deb
+
+- name: Fixing /var/run/docker.sock error
+  shell: chmod 666 /var/run/docker.sock
+
+- name: Ensure Group Docker Exists
+  group:
+    name: docker
+    state: present
+
+- name: Adding Docker to the Group of the current user
+  user:
+    name: kurt
+    groups: docker
+    append: yes
+
+- name: Start Docker Services
+  service:
+    name: "{{ item }}"
+    state: started
+  with_items:
+    - docker
+    - containerd
+
+- name: Install Python
+  apt:
+    name: python3-pip
+
+- name: Install python sdk
+  become_user: "{{ ansible_env.SUDO_USER }}"
+  pip:
+    name:
+      - docker
+      - docker-compose
+
+- block:
+  - name: Verifying docker service
+    shell: systemctl list-unit-files | grep docker
+    register: docker_service
+
+  - debug:
+      msg= "{{ docker_service }}"
+
+- block:
+  - name: Verifying user groups
+    shell: groups kurt
+    register: user_groups
+
+  - debug:
+      msg= "{{ user_groups }}"
+
+- block:
+  - name: Verifying docker installation
+    shell: docker --version
+    register: docker_installation
+
+  - debug:
+      msg= "{{ docker_installation }}"
+
